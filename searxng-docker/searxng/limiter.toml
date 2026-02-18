@@ -1,0 +1,11 @@
+# SearXNG Rate Limiter Configuration
+# Disabled for local CITEFLOW usage
+
+[botdetection.ip_limit]
+# Disable rate limiting for internal use
+link_token = false
+
+[botdetection.ip_lists]
+pass_ip = [
+    "0.0.0.0/0",
+]

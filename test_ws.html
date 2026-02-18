@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CITEFLOW WebSocket Test</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 0.5rem; color: #818cf8; font-size: 2rem; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 2rem; }
+        .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #334155; }
+        .card h3 { color: #a5b4fc; margin-bottom: 1rem; }
+        label { display: block; color: #94a3b8; margin-bottom: 0.3rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        input, textarea { width: 100%; background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 0.75rem; color: #e2e8f0; font-size: 0.95rem; margin-bottom: 1rem; font-family: inherit; }
+        textarea { resize: vertical; min-height: 80px; }
+        input:focus, textarea:focus { outline: none; border-color: #818cf8; box-shadow: 0 0 0 3px rgba(129,140,248,0.15); }
+        .btn { background: #6366f1; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; transition: all 0.2s; }
+        .btn:hover { background: #4f46e5; }
+        .btn:disabled { background: #475569; cursor: not-allowed; }
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-group { display: flex; gap: 0.75rem; }
+        .status { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+        .status-disconnected { background: #7f1d1d33; color: #fca5a5; }
+        .status-connected { background: #14532d33; color: #86efac; }
+        .status-loading { background: #78350f33; color: #fcd34d; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot-red { background: #ef4444; }
+        .dot-green { background: #22c55e; }
+        .dot-yellow { background: #eab308; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .log { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 1rem; max-height: 300px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 0.85rem; line-height: 1.6; }
+        .log-entry { padding: 0.25rem 0; border-bottom: 1px solid #1e293b; }
+        .log-time { color: #64748b; }
+        .log-info { color: #38bdf8; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-data { color: #c4b5fd; }
+        .result-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 1.5rem; }
+        .suggestion-text { font-size: 1.1rem; line-height: 1.7; color: #f1f5f9; margin-bottom: 1rem; }
+        .citation { display: inline-block; background: #312e81; color: #a5b4fc; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; margin: 0.25rem; text-decoration: none; }
+        .citation:hover { background: #3730a3; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 CITEFLOW</h1>
+        <p class="subtitle">AI-powered document suggestions with mandatory citations</p>
+
+        <!-- Connection -->
+        <div class="card">
+            <div class="flex-between">
+                <h3>📡 Connection</h3>
+                <span id="status" class="status status-disconnected">
+                    <span class="dot dot-red" id="status-dot"></span>
+                    <span id="status-text">Disconnected</span>
+                </span>
+            </div>
+            <label>WebSocket URL</label>
+            <input type="text" id="ws-url" value="ws://localhost:8000/suggest/test-doc-123" />
+            <div class="btn-group">
+                <button class="btn" id="connect-btn" onclick="connect()">Connect</button>
+                <button class="btn btn-danger" id="disconnect-btn" onclick="disconnect()" disabled>Disconnect</button>
+            </div>
+        </div>
+
+        <!-- Request -->
+        <div class="card">
+            <h3>📝 Document Context</h3>
+            <label>Title</label>
+            <input type="text" id="title" value="Qutub Minar" />
+            <label>Heading</label>
+            <input type="text" id="heading" value="Introduction" />
+            <label>Content</label>
+            <textarea id="content">The Qutub Minar, a UNESCO World Heritage Site, stands as a remarkable testament to the architectural brilliance of the era, showcasing a unique blend of Indo-Islamic styles.</textarea>
+            <button class="btn" id="send-btn" onclick="sendMessage()" disabled>🚀 Get Suggestion</button>
+        </div>
+
+        <!-- Result -->
+        <div class="card" id="result-card" style="display:none;">
+            <h3>💡 Suggestion</h3>
+            <div class="result-box">
+                <div class="suggestion-text" id="suggestion-text"></div>
+                <label>Citations</label>
+                <div id="citations"></div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="card">
+            <h3>📋 Logs</h3>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const colorClass = `log-${type}`;
+            logEl.innerHTML += `<div class="log-entry"><span class="log-time">[${time}]</span> <span class="${colorClass}">${message}</span></div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function setStatus(state) {
+            const statusEl = document.getElementById('status');
+            const dotEl = document.getElementById('status-dot');
+            const textEl = document.getElementById('status-text');
+
+            if (state === 'connected') {
+                statusEl.className = 'status status-connected';
+                dotEl.className = 'dot dot-green';
+                textEl.textContent = 'Connected';
+            } else if (state === 'loading') {
+                statusEl.className = 'status status-loading';
+                dotEl.className = 'dot dot-yellow';
+                textEl.textContent = 'Processing...';
+            } else {
+                statusEl.className = 'status status-disconnected';
+                dotEl.className = 'dot dot-red';
+                textEl.textContent = 'Disconnected';
+            }
+        }
+
+        function connect() {
+            const url = document.getElementById('ws-url').value;
+            log(`Connecting to ${url}...`, 'info');
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    log('✅ WebSocket connected!', 'success');
+                    setStatus('connected');
+                    document.getElementById('connect-btn').disabled = true;
+                    document.getElementById('disconnect-btn').disabled = false;
+                    document.getElementById('send-btn').disabled = false;
+                };
+
+                ws.onmessage = (event) => {
+                    log(`📥 Received: ${event.data}`, 'data');
+
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.suggestion) {
+                            document.getElementById('result-card').style.display = 'block';
+                            document.getElementById('suggestion-text').textContent = data.suggestion;
+
+                            const citationsEl = document.getElementById('citations');
+                            citationsEl.innerHTML = '';
+                            if (data.citations && data.citations.length > 0) {
+                                data.citations.forEach(url => {
+                                    citationsEl.innerHTML += `<a href="${url}" target="_blank" class="citation">${url}</a>`;
+                                });
+                            } else {
+                                citationsEl.innerHTML = '<span style="color:#64748b">No citations provided</span>';
+                            }
+
+                            setStatus('connected');
+                            log(`✅ Suggestion received with ${(data.citations || []).length} citations`, 'success');
+                        } else if (data.status === 'connected') {
+                            log(`🔗 ${data.message}`, 'success');
+                        } else if (data.error) {
+                            log(`❌ Error: ${data.error}`, 'error');
+                            setStatus('connected');
+                        }
+                    } catch (e) {
+                        log(`📥 Raw message: ${event.data}`, 'data');
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    log(`❌ WebSocket error`, 'error');
+                    setStatus('disconnected');
+                };
+
+                ws.onclose = (event) => {
+                    log(`🔌 Connection closed (code: ${event.code})`, 'info');
+                    setStatus('disconnected');
+                    document.getElementById('connect-btn').disabled = false;
+                    document.getElementById('disconnect-btn').disabled = true;
+                    document.getElementById('send-btn').disabled = true;
+                    ws = null;
+                };
+            } catch (e) {
+                log(`❌ Connection failed: ${e.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                log('Disconnected by user', 'info');
+            }
+        }
+
+        function sendMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ Not connected!', 'error');
+                return;
+            }
+
+            const payload = {
+                title: document.getElementById('title').value,
+                heading: document.getElementById('heading').value,
+                content: document.getElementById('content').value,
+            };
+
+            const jsonStr = JSON.stringify(payload);
+            ws.send(jsonStr);
+            setStatus('loading');
+            log(`📤 Sent: ${jsonStr}`, 'info');
+            log('⏳ Waiting for suggestion (this may take 15-30 seconds)...', 'info');
+        }
+    </script>
+</body>
+</html>
