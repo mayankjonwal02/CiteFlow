@@ -403,7 +403,7 @@ Please search the web for relevant information about this topic, scrape the most
     }
 
     try:
-        result = await agent.ainvoke(initial_state)
+        result = await agent.ainvoke(initial_state, config={"recursion_limit": 100000})
         return _parse_agent_response(result)
     except Exception as e:
         logger.error(f"Research agent error: {e}", exc_info=True)
@@ -444,7 +444,7 @@ The knowledge base (collection: "{collection_name}") already contains researched
     }
 
     try:
-        result = await agent.ainvoke(initial_state)
+        result = await agent.ainvoke(initial_state, config={"recursion_limit": 100000})
         return _parse_agent_response(result)
     except Exception as e:
         logger.error(f"Fast agent error: {e}", exc_info=True)
