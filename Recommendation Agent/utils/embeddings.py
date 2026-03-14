@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 OpenAI Embeddings
 Generates vector embeddings for text using OpenAI's embedding models.

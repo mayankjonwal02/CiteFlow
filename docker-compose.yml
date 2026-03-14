@@ -35,6 +35,10 @@ services:
       - QDRANT_URL=http://qdrant-digitrix:6333
       - SEARXNG_URL=http://searxng-digitrix:8080
       - FIRECRAWLER_URL=http://firecrawl-api-digitrix:3002
+      - CITEFLOW_DB_PATH=/data/citeflow.db
+      - CITEFLOW_CHAT_MODEL=${CITEFLOW_CHAT_MODEL:-gpt-4o-mini}
+    volumes:
+      - recommendation-agent-data:/data
     depends_on:
       qdrant-digitrix:
         condition: service_healthy
@@ -235,3 +239,5 @@ volumes:
     name: citeflow-qdrant-data
   valkey-data:
     name: citeflow-valkey-data
+  recommendation-agent-data:
+    name: citeflow-recommendation-agent-data

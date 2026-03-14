@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 LangGraph Recommendation Agent
 Orchestrates web search, scraping, storage, and suggestion generation

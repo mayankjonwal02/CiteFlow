@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Qdrant Vector Database Operations
 Manages collections, insertion, and semantic search in Qdrant.
@@ -55,6 +57,16 @@ def ensure_collection(collection_name: str) -> bool:
 
     except Exception as e:
         logger.error(f"Error ensuring collection '{collection_name}': {e}")
+        return False
+
+
+def collection_exists(collection_name: str) -> bool:
+    client = get_qdrant_client()
+    try:
+        collections = client.get_collections().collections
+        return collection_name in [c.name for c in collections]
+    except Exception as e:
+        logger.error(f"Error checking collection '{collection_name}': {e}")
         return False
 
 
@@ -124,6 +136,7 @@ async def search_qdrant(
     collection_name: str,
     query: str,
     top_k: int = 5,
+    source_id: str | None = None,
 ) -> list[dict]:
     """
     Semantic search in a Qdrant collection.
@@ -140,9 +153,7 @@ async def search_qdrant(
 
     try:
         # Ensure collection exists
-        collections = client.get_collections().collections
-        existing = [c.name for c in collections]
-        if collection_name not in existing:
+        if not collection_exists(collection_name):
             logger.warning(f"Collection '{collection_name}' does not exist for search")
             return []
 
@@ -150,12 +161,18 @@ async def search_qdrant(
         query_embedding = await get_embedding(query)
 
         # Search
-        search_results = client.query_points(
-            collection_name=collection_name,
-            query=query_embedding,
-            limit=top_k,
-            with_payload=True,
-        )
+        query_kwargs = {
+            "collection_name": collection_name,
+            "query": query_embedding,
+            "limit": top_k,
+            "with_payload": True,
+        }
+        if source_id:
+            query_kwargs["query_filter"] = models.Filter(
+                must=[models.FieldCondition(key="source_id", match=models.MatchValue(value=source_id))]
+            )
+
+        search_results = client.query_points(**query_kwargs)
 
         results = []
         for point in search_results.points:
@@ -163,6 +180,7 @@ async def search_qdrant(
                 "text": point.payload.get("text", ""),
                 "url": point.payload.get("url", ""),
                 "source": point.payload.get("source", point.payload.get("url", "")),
+                "source_id": point.payload.get("source_id", ""),
                 "score": point.score,
             })
 
