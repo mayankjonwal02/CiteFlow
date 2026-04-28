@@ -1,6 +1,6 @@
 """
-Firecrawl Web Scraping Operations
-Extracts content from web pages using Firecrawl API.
+Web Scraping Operations
+Extracts content from web pages using Tavily Extract (preferred) or Firecrawl API (fallback).
 """
 
 import os
@@ -11,17 +11,46 @@ from typing import Optional
 logger = logging.getLogger("citeflow.crawl")
 
 FIRECRAWLER_URL = os.getenv("FIRECRAWLER_URL", "http://firecrawl-api-digitrix:3002")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 
-async def scrape_url(url: str) -> Optional[str]:
+def _truncate_content(content: str, url: str) -> str:
+    """Truncate content to avoid token limits and log the result."""
+    max_chars = 8000
+    if len(content) > max_chars:
+        content = content[:max_chars] + "\n\n[Content truncated...]"
+    logger.info(f"Successfully scraped {url} ({len(content)} chars)")
+    return content
+
+
+async def _scrape_url_tavily(url: str) -> Optional[str]:
     """
-    Scrape a web page and extract its main content using Firecrawl.
-
-    Args:
-        url: The URL to scrape.
+    Attempt to scrape a URL using Tavily Extract.
 
     Returns:
-        Extracted markdown/text content, or None if scraping fails.
+        Extracted content as a string, or None on failure/empty result.
+    """
+    from tavily import AsyncTavilyClient
+
+    try:
+        client = AsyncTavilyClient(api_key=TAVILY_API_KEY)
+        response = await client.extract(urls=[url])
+        results = response.get("results", [])
+        if results and results[0].get("raw_content"):
+            return results[0]["raw_content"]
+        logger.warning(f"Tavily Extract returned no content for {url}")
+        return None
+    except Exception as e:
+        logger.error(f"Tavily Extract error for {url}: {e}")
+        return None
+
+
+async def _scrape_url_firecrawl(url: str) -> Optional[str]:
+    """
+    Scrape a URL using the self-hosted Firecrawl HTTP API.
+
+    Returns:
+        Extracted markdown content, or None on failure.
     """
     scrape_endpoint = f"{FIRECRAWLER_URL}/v1/scrape"
     payload = {
@@ -38,11 +67,6 @@ async def scrape_url(url: str) -> Optional[str]:
         if data.get("success"):
             content = data.get("data", {}).get("markdown", "")
             if content:
-                # Truncate very long content to avoid token limits
-                max_chars = 8000
-                if len(content) > max_chars:
-                    content = content[:max_chars] + "\n\n[Content truncated...]"
-                logger.info(f"Successfully scraped {url} ({len(content)} chars)")
                 return content
             else:
                 logger.warning(f"No markdown content extracted from {url}")
@@ -60,6 +84,33 @@ async def scrape_url(url: str) -> Optional[str]:
     except Exception as e:
         logger.error(f"Firecrawl scrape error for {url}: {e}")
         return None
+
+
+async def scrape_url(url: str) -> Optional[str]:
+    """
+    Scrape a web page and extract its main content.
+
+    When TAVILY_API_KEY is set, Tavily Extract is tried first.
+    Falls back to the self-hosted Firecrawl API on failure or empty result.
+
+    Args:
+        url: The URL to scrape.
+
+    Returns:
+        Extracted markdown/text content, or None if scraping fails.
+    """
+    content = None
+
+    if TAVILY_API_KEY:
+        content = await _scrape_url_tavily(url)
+
+    if not content:
+        content = await _scrape_url_firecrawl(url)
+
+    if content:
+        return _truncate_content(content, url)
+
+    return None
 
 
 async def scrape_multiple_urls(urls: list[str], max_concurrent: int = 3) -> dict[str, Optional[str]]:
