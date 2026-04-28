@@ -67,7 +67,8 @@ class AgentState(TypedDict):
 
 @tool
 async def web_search(query: str) -> str:
-    """Search the web for information related to the query using SearXNG meta-search engine.
+    """Search the web for information related to the query.
+    Uses Tavily Search when configured, otherwise falls back to SearXNG meta-search engine.
     Returns a list of search results with titles, URLs, and snippets.
     Use this to find relevant sources on a topic."""
     results = await search_web(query, num_results=5)

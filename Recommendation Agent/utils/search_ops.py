@@ -1,6 +1,6 @@
 """
-SearXNG Search Operations
-Searches the web using a self-hosted SearXNG meta-search engine.
+Search Operations
+Searches the web using Tavily (when TAVILY_API_KEY is set) or a self-hosted SearXNG meta-search engine.
 """
 
 import os
@@ -11,9 +11,48 @@ from typing import Optional
 logger = logging.getLogger("citeflow.search")
 
 SEARXNG_URL = os.getenv("SEARXNG_URL", "http://searxng-digitrix:8080")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 
-async def search_web(query: str, num_results: int = 5, categories: str = "general") -> list[dict]:
+async def _search_web_tavily(query: str, num_results: int = 5) -> list[dict]:
+    """
+    Search the web using Tavily Search API.
+
+    Args:
+        query: The search query string.
+        num_results: Maximum number of results to return.
+
+    Returns:
+        A list of dicts with keys: title, url, snippet.
+    """
+    from tavily import AsyncTavilyClient
+
+    try:
+        client = AsyncTavilyClient(api_key=TAVILY_API_KEY)
+        response = await client.search(
+            query=query,
+            max_results=num_results,
+            search_depth="advanced",
+            topic="general",
+        )
+
+        results = []
+        for item in response.get("results", []):
+            results.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", ""),
+            })
+
+        logger.info(f"Tavily returned {len(results)} results for query: '{query}'")
+        return results
+
+    except Exception as e:
+        logger.error(f"Tavily search error: {e}")
+        return []
+
+
+async def _search_web_searxng(query: str, num_results: int = 5, categories: str = "general") -> list[dict]:
     """
     Search the web using SearXNG meta-search engine.
 
@@ -59,3 +98,22 @@ async def search_web(query: str, num_results: int = 5, categories: str = "genera
     except Exception as e:
         logger.error(f"SearXNG search error: {e}")
         return []
+
+
+async def search_web(query: str, num_results: int = 5, categories: str = "general") -> list[dict]:
+    """
+    Search the web for information.
+
+    Uses Tavily Search when TAVILY_API_KEY is set, otherwise falls back to SearXNG.
+
+    Args:
+        query: The search query string.
+        num_results: Maximum number of results to return.
+        categories: SearXNG search categories (ignored when using Tavily).
+
+    Returns:
+        A list of dicts with keys: title, url, snippet.
+    """
+    if TAVILY_API_KEY:
+        return await _search_web_tavily(query, num_results)
+    return await _search_web_searxng(query, num_results, categories)
