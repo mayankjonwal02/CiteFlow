@@ -24,11 +24,13 @@ Architecture:
 
 import os
 import json
+import uuid
 import logging
 from typing import Annotated, TypedDict
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -66,11 +68,13 @@ class AgentState(TypedDict):
 # ─── Tools (used by the research agent) ──────────────────────────────────────
 
 @tool
-async def web_search(query: str) -> str:
-    """Search the web for information related to the query using SearXNG meta-search engine.
+async def web_search(query: str, config: RunnableConfig) -> str:
+    """Search the web for information related to the query using the configured search provider.
     Returns a list of search results with titles, URLs, and snippets.
     Use this to find relevant sources on a topic."""
-    results = await search_web(query, num_results=5)
+    results = await search_web(
+        query, num_results=5, session_id=config.get("configurable", {}).get("search_session_id"),
+    )
     if not results:
         return "No search results found."
     return json.dumps(results, indent=2)
@@ -431,7 +435,10 @@ Please search the web for relevant information about this topic, scrape the most
     }
 
     try:
-        result = await agent.ainvoke(initial_state, config={"recursion_limit": 100000})
+        result = await agent.ainvoke(initial_state, config={
+            "recursion_limit": 100000,
+            "configurable": {"search_session_id": uuid.uuid4().hex},
+        })
         raw_result = _parse_agent_raw_response(result)
         return await _enrich_and_build_response(raw_result, citation_cache)
     except Exception as e:

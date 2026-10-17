@@ -60,6 +60,36 @@ docker compose ps
 
 ---
 
+## Optional Parallel web search
+
+SearXNG remains the default search provider. To use hosted web search for the
+research path, set this in your `.env`:
+
+```dotenv
+CITEFLOW_SEARCH_PROVIDER=parallel
+```
+
+Rebuild and recreate the agent after changing the setting:
+
+```bash
+docker compose up -d --build recommendation-agent
+```
+
+[Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) provides
+free anonymous search in Fast mode with no Parallel account or API key. It is
+intended for exploration and light use and has rate limits. Queries are sent to
+`https://search.parallel.ai/mcp`; titles, source URLs and excerpts feed the same
+research tools as SearXNG. Firecrawl still scrapes pages, and Qdrant, OpenAI and
+citation enrichment keep their existing roles. The Compose stack still starts
+SearXNG and its dependencies.
+
+Set `CITEFLOW_SEARCH_PROVIDER=searxng` to switch back. Provider failures return no
+results without automatically contacting another provider. Parallel supports
+`general` searches only; direct `search_web` callers using other SearXNG categories
+must select `searxng`.
+
+---
+
 ## 💡 WebSocket API
 
 ### Endpoint
@@ -408,6 +438,7 @@ citeflow/
 |----------|-------------|----------|
 | `OPENAI_API_KEY` | OpenAI API key for GPT-4o-mini & embeddings | **Yes** |
 | `USE_DB_AUTHENTICATION` | Firecrawl auth toggle (default: `false`) | No |
+| `CITEFLOW_SEARCH_PROVIDER` | `searxng` (default) or `parallel` for opt-in hosted search | No |
 
 ---
 
